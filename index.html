@@ -17,8 +17,45 @@
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
-
   body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text-primary); min-height: 100vh; padding: 0 0 60px; font-size: 14px; line-height: 1.5; }
+
+  /* ── Loading screen ── */
+  #loading-screen {
+    position: fixed; inset: 0; background: var(--accent);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 20px; z-index: 100; transition: opacity 0.4s ease;
+  }
+  #loading-screen.hidden { opacity: 0; pointer-events: none; }
+  .loader-logo { font-size: 32px; color: white; opacity: 0.9; }
+  .loader-text { color: rgba(255,255,255,0.7); font-size: 13px; }
+  .loader-spinner {
+    width: 28px; height: 28px;
+    border: 2px solid rgba(255,255,255,0.2);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Bandeau source ── */
+  .source-bar {
+    background: var(--accent-light); border-bottom: 1px solid #C8E0D1;
+    padding: 7px 32px; display: flex; align-items: center; gap: 10px;
+    font-size: 11.5px; color: var(--accent);
+  }
+  .source-bar svg { flex-shrink: 0; }
+  .source-bar a { color: var(--accent); font-weight: 500; }
+  .source-bar .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; animation: pulse 2.5s ease infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .source-bar .last-update { margin-left: auto; color: var(--text-muted); font-size: 11px; }
+
+  /* ── Error banner ── */
+  #error-banner {
+    display: none; background: #FEF2F2; border-bottom: 1px solid #FECACA;
+    padding: 10px 32px; font-size: 12px; color: #991B1B;
+    align-items: center; gap: 10px;
+  }
+  #error-banner.show { display: flex; }
 
   /* Header */
   header { background: var(--accent); color: white; padding: 28px 32px 24px; display: flex; align-items: flex-start; gap: 20px; }
@@ -101,7 +138,7 @@
   .notice-inner { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; background: var(--warning-bg); border: 1px solid #F0D9B8; border-radius: var(--radius-sm); font-size: 12px; color: var(--warning); line-height: 1.5; }
   .notice-inner svg { flex-shrink: 0; margin-top: 1px; }
 
-  /* ── Net estimé ── */
+  /* Net estimé */
   .net-block { grid-column: 1 / -1; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 24px; }
   .net-main { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
   @media (max-width: 680px) { .net-main { grid-template-columns: 1fr; } }
@@ -121,8 +158,10 @@
 
   /* ══ IMPRESSION ══ */
   @media print {
-    header, .filiere-switcher, .notice, .card:not(.result-card),
-    .formula-card, .net-block, .pdf-btn, details { display: none !important; }
+    #loading-screen, .source-bar, #error-banner,
+    header, .filiere-switcher, .notice,
+    .card:not(.result-card), .formula-card, .net-block,
+    .pdf-btn, details { display: none !important; }
     body { background: white; padding: 0; }
     .layout { display: block !important; max-width: 100%; padding: 0; margin: 0; }
     .result-card { grid-column: auto !important; background: white !important; color: #1A1917 !important; border: none !important; padding: 0 !important; display: block !important; }
@@ -163,13 +202,35 @@
 </head>
 <body>
 
+<!-- Loading -->
+<div id="loading-screen">
+  <div class="loader-logo">€</div>
+  <div class="loader-spinner"></div>
+  <div class="loader-text">Chargement des paramètres…</div>
+</div>
+
+<!-- Fiche PDF (cachée à l'écran) -->
 <div id="print-sheet"></div>
+
+<!-- Bandeau source -->
+<div class="source-bar">
+  <div class="dot"></div>
+  <svg width="13" height="13" fill="none" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M2 6h12" stroke="currentColor" stroke-width="1.4"/><path d="M5 9h2M5 11.5h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+  <span>Paramètres chargés depuis <a id="sheet-link" href="#" target="_blank">Google Sheets · Amicial RH</a></span>
+  <span class="last-update" id="last-update"></span>
+</div>
+
+<!-- Erreur chargement -->
+<div id="error-banner">
+  <svg width="14" height="14" fill="none" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v3.5M8 11v.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+  <span id="error-msg">Impossible de charger les paramètres depuis Google Sheets. Les valeurs par défaut sont utilisées.</span>
+</div>
 
 <header>
   <div class="logo-mark">€</div>
   <div>
     <h1>Calcul de rémunération</h1>
-    <p>Convention collective BAD · Avenant 43 · Valeur du point 5,77 €</p>
+    <p id="header-sub">Convention collective BAD · Avenant 43 · Chargement…</p>
   </div>
 </header>
 
@@ -183,13 +244,12 @@
 <div class="notice">
   <div class="notice-inner">
     <svg width="14" height="14" fill="none" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v4M8 11v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-    <span>Outil indicatif à usage RH. Pour tout positionnement, se rapprocher du service Ressources Humaines. <strong>SMIC au 01/06/2026 : 1 867,06 €</strong> (temps plein).</span>
+    <span>Outil indicatif à usage RH. Pour tout positionnement, se rapprocher du service Ressources Humaines. <strong id="notice-smic">SMIC en cours de chargement…</strong></span>
   </div>
 </div>
 
 <div class="layout">
 
-  <!-- Positionnement -->
   <div class="card">
     <div class="card-title">Positionnement dans la grille</div>
     <div class="field">
@@ -227,7 +287,6 @@
     </details>
   </div>
 
-  <!-- ECR -->
   <div class="card">
     <div class="card-title">Éléments complémentaires de rémunération</div>
     <div class="field">
@@ -244,14 +303,7 @@
     </div>
     <div class="field">
       <label>Diplôme</label>
-      <select id="diplome" onchange="calculate()">
-        <option value="0">Néant — 0 pt</option>
-        <option value="11">Niveau 3 · CAP/BEP, DEAES, DEAMP — 11 pts</option>
-        <option value="12">Niveau 4 · BAC, DEAS (aide-soignant) — 12 pts</option>
-        <option value="14">Niveau 5 · BAC+2, SP3S (coordinateurs) — 14 pts</option>
-        <option value="15">Niveau 6 · BAC+3/4, DEIS, ERGOTHERAPEUTE — 15 pts</option>
-        <option value="17">Niveau 7 · BAC+5, CAFDES — 17 pts</option>
-      </select>
+      <select id="diplome" onchange="calculate()"></select>
     </div>
     <details>
       <summary id="postes-summary">Postes filière Intervention</summary>
@@ -259,7 +311,6 @@
     </details>
   </div>
 
-  <!-- Résultat brut -->
   <div class="card result-card">
     <div>
       <div class="result-main-label">Salaire brut mensuel estimé</div>
@@ -275,13 +326,11 @@
     <div class="result-details" id="result-details"></div>
   </div>
 
-  <!-- Détail du calcul -->
   <div class="formula-card">
     <div class="card-title">Détail du calcul</div>
     <div class="formula-line" id="formula-display">—</div>
   </div>
 
-  <!-- Net estimé -->
   <div class="net-block">
     <div class="card-title">Net estimé mensuel</div>
     <div class="net-main">
@@ -304,70 +353,172 @@
 </div>
 
 <script>
-// ── Constantes ────────────────────────────────────────────────────────────
-const VALEUR_POINT = 5.77;
-const SMIC_MENSUEL = 1867.06;
+// ── Config Google Sheets ───────────────────────────────────────────────────
+const SHEET_ID  = '1fVBiMO8REUrTisCd_aanzsXnODAunbYjuR-_E26FO4M';
+const API_KEY   = 'AIzaSyBnrR-WTa1FUcK_az99AH27uBUGG74ra6M';
+const BASE_URL  = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values`;
+const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
 
-const GRILLE = {
-  IAD: {
-    Employé: { 1: { 1:308, 2:315, 3:331 }, 2: { 1:344, 2:359, 3:383 } },
-    TAM:     { 1: { 1:363, 2:379, 3:404 }, 2: { 1:436, 2:456, 3:485 } }
-  },
-  ADM: {
-    Employé: { 1: { 1:308, 2:315, 3:331 }, 2: { 1:344, 2:359, 3:383 } },
-    TAM:     { 1: { 1:363, 2:379, 3:404 }, 2: { 1:436, 2:456, 3:485 } }
-  }
+// ── Valeurs par défaut (fallback si Sheets inaccessible) ──────────────────
+let CFG = {
+  valeur_point : 5.77,
+  smic_mensuel : 1867.06,
+  heures_tp    : 151.67,
+};
+
+let DIPLOMES = [
+  { code:'0',  label:'Néant',                               points:0  },
+  { code:'11', label:'Niveau 3 · CAP/BEP, DEAES, DEAMP',   points:11 },
+  { code:'12', label:'Niveau 4 · BAC, DEAS (aide-soignant)',points:12 },
+  { code:'14', label:'Niveau 5 · BAC+2, SP3S',              points:14 },
+  { code:'15', label:'Niveau 6 · BAC+3/4, DEIS, ERGOTH.',   points:15 },
+  { code:'17', label:'Niveau 7 · BAC+5, CAFDES',            points:17 },
+];
+
+let COEFFICIENTS = {
+  Employé: { 1:{1:308,2:315,3:331}, 2:{1:344,2:359,3:383} },
+  TAM:     { 1:{1:363,2:379,3:404}, 2:{1:436,2:456,3:485} },
 };
 
 const POSTES_IAD = [
-  { degre:1, echelon:1, poste:'Intervenant à domicile', coeff:308 },
-  { degre:1, echelon:2, poste:'Intervenant à domicile', coeff:315 },
-  { degre:1, echelon:3, poste:'Intervenant à domicile', coeff:331 },
-  { degre:2, echelon:1, poste:'Auxiliaire de Vie Sociale / AMP / Auxiliaire puériculture', coeff:344 },
-  { degre:2, echelon:2, poste:'Auxiliaire de Vie Sociale / AMP / Auxiliaire puériculture', coeff:359 },
-  { degre:2, echelon:3, poste:'Auxiliaire de Vie Sociale / AMP / Auxiliaire puériculture', coeff:383 },
+  {degre:1,echelon:1,poste:'Intervenant à domicile',coeff:308},
+  {degre:1,echelon:2,poste:'Intervenant à domicile',coeff:315},
+  {degre:1,echelon:3,poste:'Intervenant à domicile',coeff:331},
+  {degre:2,echelon:1,poste:'AVS / AMP / Auxiliaire puériculture',coeff:344},
+  {degre:2,echelon:2,poste:'AVS / AMP / Auxiliaire puériculture',coeff:359},
+  {degre:2,echelon:3,poste:'AVS / AMP / Auxiliaire puériculture',coeff:383},
 ];
-
 const POSTES_ADM = [
-  { degre:2, echelon:1, poste:"Agent d'accueil", coeff:344 },
-  { degre:2, echelon:2, poste:"Agent d'accueil", coeff:359 },
-  { degre:2, echelon:3, poste:"Agent d'accueil", coeff:383 },
-  { degre:1, echelon:1, poste:'Gestionnaire de secteur', coeff:363 },
-  { degre:1, echelon:2, poste:'Gestionnaire de secteur', coeff:379 },
-  { degre:1, echelon:3, poste:'Gestionnaire de secteur', coeff:404 },
-  { degre:2, echelon:1, poste:'Coordinateur de parcours', coeff:436 },
-  { degre:2, echelon:2, poste:'Coordinateur de parcours', coeff:456 },
-  { degre:2, echelon:3, poste:'Coordinateur de parcours', coeff:485 },
+  {degre:2,echelon:1,poste:"Agent d'accueil",coeff:344},
+  {degre:2,echelon:2,poste:"Agent d'accueil",coeff:359},
+  {degre:2,echelon:3,poste:"Agent d'accueil",coeff:383},
+  {degre:1,echelon:1,poste:'Gestionnaire de secteur',coeff:363},
+  {degre:1,echelon:2,poste:'Gestionnaire de secteur',coeff:379},
+  {degre:1,echelon:3,poste:'Gestionnaire de secteur',coeff:404},
+  {degre:2,echelon:1,poste:'Coordinateur de parcours',coeff:436},
+  {degre:2,echelon:2,poste:'Coordinateur de parcours',coeff:456},
+  {degre:2,echelon:3,poste:'Coordinateur de parcours',coeff:485},
 ];
 
-// Décomposition indicative des cotisations salariales (régime général)
 const LIGNES_COT = [
-  { label:'Maladie, maternité',       taux:0.0075 },
-  { label:'Retraite de base (CNAV)',  taux:0.0690 },
-  { label:'Retraite complémentaire',  taux:0.0387 },
-  { label:'Chômage (ARE)',            taux:0.0240 },
-  { label:'CEG / CET',               taux:0.0017 },
-  { label:'CSG / CRDS',              taux:0.0750 },
+  {label:'Maladie, maternité',      taux:0.0075},
+  {label:'Retraite de base (CNAV)', taux:0.0690},
+  {label:'Retraite complémentaire', taux:0.0387},
+  {label:'Chômage (ARE)',           taux:0.0240},
+  {label:'CEG / CET',              taux:0.0017},
+  {label:'CSG / CRDS',             taux:0.0750},
 ];
-const TAUX_COT_BASE = LIGNES_COT.reduce((s, l) => s + l.taux, 0); // ~0.2159
+const TAUX_COT_BASE = LIGNES_COT.reduce((s,l) => s + l.taux, 0);
 
-// ── État ──────────────────────────────────────────────────────────────────
 let currentFiliere = 'IAD';
 let currentTaux    = 0.22;
 let state          = {};
 
 // ── Helpers ───────────────────────────────────────────────────────────────
-function fmt(n, dec = 2) {
-  return n.toFixed(dec).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f');
+const el  = id => document.getElementById(id);
+const fmt = (n, dec=2) => n.toFixed(dec).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f');
+
+// ── Chargement Google Sheets ──────────────────────────────────────────────
+async function fetchRange(range) {
+  const url = `${BASE_URL}/${encodeURIComponent(range)}?key=${API_KEY}`;
+  const r   = await fetch(url);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const d = await r.json();
+  return d.values || [];
 }
 
-function el(id) { return document.getElementById(id); }
+async function loadFromSheets() {
+  try {
+    // Onglet config : colonne A = clé, colonne B = valeur (ligne 1 = en-tête)
+    const configRows = await fetchRange('config!A2:B20');
+    configRows.forEach(row => {
+      if (row.length >= 2 && row[0] && row[1]) {
+        const key = row[0].trim();
+        const val = parseFloat(row[1].toString().replace(',', '.'));
+        if (!isNaN(val)) CFG[key] = val;
+      }
+    });
+
+    // Onglet diplomes : code | label | points (ligne 1 = en-tête)
+    const diplRows = await fetchRange('diplomes!A2:C20');
+    if (diplRows.length > 0) {
+      DIPLOMES = diplRows
+        .filter(r => r.length >= 3 && r[0] !== '')
+        .map(r => ({
+          code   : r[0].toString().trim(),
+          label  : r[1].toString().trim(),
+          points : parseInt(r[2]) || 0,
+        }));
+    }
+
+    // Onglet coefficients : csp | degre | echelon | coeff (ligne 1 = en-tête)
+    const coeffRows = await fetchRange('coefficients!A2:D30');
+    if (coeffRows.length > 0) {
+      COEFFICIENTS = {};
+      coeffRows
+        .filter(r => r.length >= 4 && r[0] !== '')
+        .forEach(r => {
+          const csp     = r[0].toString().trim();
+          const degre   = parseInt(r[1]);
+          const echelon = parseInt(r[2]);
+          const coeff   = parseInt(r[3]);
+          if (!COEFFICIENTS[csp]) COEFFICIENTS[csp] = {};
+          if (!COEFFICIENTS[csp][degre]) COEFFICIENTS[csp][degre] = {};
+          COEFFICIENTS[csp][degre][echelon] = coeff;
+        });
+    }
+
+    // Mise à jour du bandeau
+    const now = new Date();
+    el('last-update').textContent = `Mis à jour à ${now.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'})}`;
+    el('sheet-link').href = SHEET_URL;
+    return true;
+
+  } catch (err) {
+    console.warn('Sheets inaccessible, valeurs par défaut utilisées :', err.message);
+    el('error-banner').classList.add('show');
+    el('error-msg').textContent = `Impossible de charger les paramètres depuis Google Sheets (${err.message}). Les valeurs par défaut sont utilisées.`;
+    return false;
+  }
+}
+
+function applyConfig() {
+  // Mettre à jour le sous-titre header
+  el('header-sub').textContent = `Convention collective BAD · Avenant 43 · Valeur du point ${CFG.valeur_point.toFixed(2).replace('.',',')} €`;
+
+  // Mettre à jour la notice SMIC
+  el('notice-smic').textContent = `SMIC au 01/06/2026 : ${fmt(CFG.smic_mensuel)} € (temps plein)`;
+
+  // Mettre à jour la durée TP par défaut
+  const dureeInput = el('duree');
+  if (parseFloat(dureeInput.value) === 151.67 || !dureeInput.dataset.touched) {
+    dureeInput.value = CFG.heures_tp;
+    dureeInput.max   = CFG.heures_tp;
+  }
+
+  // Reconstruire le select diplôme depuis les données Sheets
+  el('diplome').innerHTML = DIPLOMES.map(d =>
+    `<option value="${d.points}">${d.label}${d.points > 0 ? ' — ' + d.points + ' pts' : ''}</option>`
+  ).join('');
+}
+
+// ── Init asynchrone ───────────────────────────────────────────────────────
+async function init() {
+  await loadFromSheets();
+  applyConfig();
+  updateForm();
+
+  // Masquer le loading screen
+  const ls = el('loading-screen');
+  ls.classList.add('hidden');
+  setTimeout(() => ls.style.display = 'none', 450);
+}
 
 // ── Switcher filière ──────────────────────────────────────────────────────
 function setFiliere(f) {
   currentFiliere = f;
   document.querySelectorAll('.tab-btn').forEach((btn, i) => {
-    btn.classList.toggle('active', (i === 0 && f === 'IAD') || (i === 1 && f === 'ADM'));
+    btn.classList.toggle('active', (i===0 && f==='IAD') || (i===1 && f==='ADM'));
   });
   el('postes-summary').textContent = f === 'IAD' ? 'Postes filière Intervention' : 'Postes filière Support';
   updateForm();
@@ -384,7 +535,7 @@ function updateGrille() {
   const csp     = el('csp').value;
   const degre   = parseInt(el('degre').value);
   const echelon = parseInt(el('echelon').value);
-  const g = GRILLE[currentFiliere][csp];
+  const g = COEFFICIENTS[csp];
   if (!g) return;
 
   let html = '<tr><th>Degré</th><th>Échelon</th><th>Coefficient</th><th>Salaire brut TP</th></tr>';
@@ -392,7 +543,7 @@ function updateGrille() {
     for (const e of Object.keys(g[d]).map(Number).sort()) {
       const coeff = g[d][e];
       const sel   = d === degre && e === echelon;
-      html += `<tr${sel ? ' class="selected"' : ''}><td>Degré ${d}</td><td>Échelon ${e}</td><td class="coeff-val">${coeff}</td><td class="coeff-sal">${fmt(coeff * VALEUR_POINT)} €</td></tr>`;
+      html += `<tr${sel?' class="selected"':''}><td>Degré ${d}</td><td>Échelon ${e}</td><td class="coeff-val">${coeff}</td><td class="coeff-sal">${fmt(coeff * CFG.valeur_point)} €</td></tr>`;
     }
   }
   el('grille-table').innerHTML = html;
@@ -405,26 +556,27 @@ function updatePostes() {
   ).join('');
 }
 
-// ── Calcul principal ──────────────────────────────────────────────────────
+// ── Calcul ────────────────────────────────────────────────────────────────
 function calculate() {
   const csp     = el('csp').value;
   const degre   = parseInt(el('degre').value);
   const echelon = parseInt(el('echelon').value);
-  const duree   = parseFloat(el('duree').value) || 151.67;
+  const duree   = parseFloat(el('duree').value) || CFG.heures_tp;
   const ancVal  = parseFloat(el('anciennete').value) || 0;
   const diplPts = parseInt(el('diplome').value) || 0;
 
-  const g = GRILLE[currentFiliere][csp];
+  const g = COEFFICIENTS[csp];
   if (!g || !g[degre] || !g[degre][echelon]) return;
 
+  const VP            = CFG.valeur_point;
   const coeff         = g[degre][echelon];
-  const salaireBaseTP = coeff * VALEUR_POINT;
-  const ecrDiplome    = diplPts * VALEUR_POINT;
+  const salaireBaseTP = coeff * VP;
+  const ecrDiplome    = diplPts * VP;
   const ecrAnciennete = salaireBaseTP * ancVal;
   const salRef        = salaireBaseTP + ecrDiplome + ecrAnciennete;
-  const ratio         = duree / 151.67;
+  const ratio         = duree / CFG.heures_tp;
   const salFinal      = salRef * ratio;
-  const smicPro       = SMIC_MENSUEL * ratio;
+  const smicPro       = CFG.smic_mensuel * ratio;
   const salAfterSmic  = Math.max(salFinal, smicPro);
   const smicApplied   = salAfterSmic > salFinal;
   const tauxHoraire   = salAfterSmic / duree;
@@ -432,34 +584,33 @@ function calculate() {
 
   const cspLabel  = el('csp').options[el('csp').selectedIndex].text;
   const ancLabel  = el('anciennete').options[el('anciennete').selectedIndex].text;
-  const diplLabel = el('diplome').options[el('diplome').selectedIndex].text;
+  const diplLabel = el('diplome').options[el('diplome').selectedIndex]?.text || '—';
 
   state = {
     filiere: currentFiliere, csp, cspLabel, degre, echelon, duree,
     ancVal, ancLabel, diplPts, diplLabel,
     coeff, salaireBaseTP, ecrDiplome, ecrAnciennete, salRef,
-    ratio, salFinal, salAfterSmic, smicApplied, tauxHoraire, salAnnuel
+    ratio, salFinal, salAfterSmic, smicApplied, tauxHoraire, salAnnuel,
+    VP,
   };
 
-  // Affichage brut
   el('result-val').textContent = fmt(salAfterSmic);
   const warn = el('smic-warning');
-  warn.textContent  = smicApplied ? '⚠ SMIC appliqué (salaire calculé inférieur au minimum légal)' : '';
+  warn.textContent   = smicApplied ? '⚠ SMIC appliqué (salaire calculé inférieur au minimum légal)' : '';
   warn.style.opacity = smicApplied ? '0.9' : '0';
 
   el('result-details').innerHTML = `
     <div class="result-row"><span class="result-row-label">Coefficient</span><span class="result-row-value">${coeff}</span></div>
-    <div class="result-row"><span class="result-row-label">Taux horaire brut</span><span class="result-row-value">${fmt(tauxHoraire, 4)} €/h</span></div>
+    <div class="result-row"><span class="result-row-label">Taux horaire brut</span><span class="result-row-value">${fmt(tauxHoraire,4)} €/h</span></div>
     <div class="result-row"><span class="result-row-label">Durée mensuelle</span><span class="result-row-value">${fmt(duree)} h</span></div>
-    <div class="result-row"><span class="result-row-label">Salaire annuel brut</span><span class="result-row-value">${fmt(salAnnuel, 0)} €</span></div>
+    <div class="result-row"><span class="result-row-label">Salaire annuel brut</span><span class="result-row-value">${fmt(salAnnuel,0)} €</span></div>
   `;
 
-  // Formule
-  let formule = `(${coeff}${diplPts > 0 ? ` + ${diplPts}\u202fpts` : ''}) × ${VALEUR_POINT}\u202f€`;
-  if (ancVal > 0) formule += ` + ${fmt(ecrAnciennete)}\u202f€ ECR ancienneté (${(ancVal * 100).toFixed(0)}\u202f%)`;
+  let formule = `(${coeff}${diplPts>0?` + ${diplPts}\u202fpts`:''}) × ${VP}\u202f€`;
+  if (ancVal > 0) formule += ` + ${fmt(ecrAnciennete)}\u202f€ ECR ancienneté (${(ancVal*100).toFixed(0)}\u202f%)`;
   formule += ` = <span class="formula-num">${fmt(salRef)}\u202f€</span>`;
   if (ratio !== 1) {
-    formule += ` × ${fmt(ratio, 4)} (prorata ${fmt(duree)}\u202fh)`;
+    formule += ` × ${fmt(ratio,4)} (prorata ${fmt(duree)}\u202fh)`;
     formule += ` = <span class="formula-num">${fmt(salFinal)}\u202f€</span>`;
   }
   el('formula-display').innerHTML = formule;
@@ -468,7 +619,7 @@ function calculate() {
   calculateNet();
 }
 
-// ── Calcul net ────────────────────────────────────────────────────────────
+// ── Net estimé ────────────────────────────────────────────────────────────
 function onTauxChange(val) {
   currentTaux = parseFloat(val) / 100;
   el('taux-badge').textContent = val + '\u202f%';
@@ -477,7 +628,6 @@ function onTauxChange(val) {
 
 function calculateNet() {
   if (!state.salAfterSmic) return;
-
   const brut        = state.salAfterSmic;
   const cotisations = brut * currentTaux;
   const net         = brut - cotisations;
@@ -485,63 +635,44 @@ function calculateNet() {
   const tauxPct     = (currentTaux * 100).toFixed(1);
   const factor      = currentTaux / TAUX_COT_BASE;
 
-  // Sauvegarder pour le PDF
-  state.net         = net;
-  state.cotisations = cotisations;
-  state.currentTaux = currentTaux;
-  state.netAnnuel   = netAnnuel;
+  state.net = net; state.cotisations = cotisations;
+  state.currentTaux = currentTaux; state.netAnnuel = netAnnuel;
 
   el('net-val').textContent = fmt(net);
-  el('net-sub').innerHTML   =
-    `Cotisations salariales : <strong>−\u202f${fmt(cotisations)}\u202f€</strong> (${tauxPct}\u202f%)\u2002·\u2002Net annuel estimé : <strong>${fmt(netAnnuel, 0)}\u202f€</strong>`;
-
-  el('net-breakdown').innerHTML = LIGNES_COT.map(l => {
-    const montant = brut * l.taux * factor;
-    return `<div class="net-row"><span class="net-row-label">${l.label}</span><span class="net-row-value">−\u202f${fmt(montant)}\u202f€</span></div>`;
-  }).join('');
+  el('net-sub').innerHTML   = `Cotisations : <strong>−\u202f${fmt(cotisations)}\u202f€</strong> (${tauxPct}\u202f%)\u2002·\u2002Net annuel : <strong>${fmt(netAnnuel,0)}\u202f€</strong>`;
+  el('net-breakdown').innerHTML = LIGNES_COT.map(l =>
+    `<div class="net-row"><span class="net-row-label">${l.label}</span><span class="net-row-value">−\u202f${fmt(brut*l.taux*factor)}\u202f€</span></div>`
+  ).join('');
 }
 
 // ── Export PDF ────────────────────────────────────────────────────────────
 function exportPDF() {
   const s = state;
   if (!s.coeff) return;
-
-  const now     = new Date();
-  const dateStr = now.toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
-  const timeStr = now.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
-  const filiereLong = s.filiere === 'IAD' ? 'Filière Intervention (IAD)' : 'Filière Support (ADM)';
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'});
+  const timeStr = now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  const filiereLong = s.filiere==='IAD' ? 'Filière Intervention (IAD)' : 'Filière Support (ADM)';
 
   const ecrRows =
-    `<tr><td>ECR Diplôme (${s.diplLabel.split('—')[0].trim()})</td><td>${s.diplPts > 0 ? fmt(s.ecrDiplome) + '\u202f€' : '—'}</td></tr>` +
-    `<tr><td>ECR Ancienneté (${s.ancLabel.split('—')[0].trim()})</td><td>${s.ancVal > 0 ? fmt(s.ecrAnciennete) + '\u202f€' : '—'}</td></tr>`;
+    `<tr><td>ECR Diplôme (${s.diplLabel.split('—')[0].trim()})</td><td>${s.diplPts>0?fmt(s.ecrDiplome)+'\u202f€':'—'}</td></tr>` +
+    `<tr><td>ECR Ancienneté (${s.ancLabel.split('—')[0].trim()})</td><td>${s.ancVal>0?fmt(s.ecrAnciennete)+'\u202f€':'—'}</td></tr>`;
 
-  let formuleTexte = `(${s.coeff}${s.diplPts > 0 ? ` + ${s.diplPts} pts diplôme` : ''}) × ${VALEUR_POINT} €`;
-  if (s.ancVal > 0) formuleTexte += ` + ${fmt(s.ecrAnciennete)} € ancienneté`;
-  formuleTexte += ` = ${fmt(s.salRef)} €`;
-  if (s.ratio !== 1) formuleTexte += ` × ${fmt(s.ratio, 4)} (prorata) = ${fmt(s.salFinal)} €`;
+  let fTxt = `(${s.coeff}${s.diplPts>0?` + ${s.diplPts} pts`:''}}) × ${s.VP} €`;
+  if (s.ancVal>0) fTxt += ` + ${fmt(s.ecrAnciennete)} € ancienneté`;
+  fTxt += ` = ${fmt(s.salRef)} €`;
+  if (s.ratio!==1) fTxt += ` × ${fmt(s.ratio,4)} (prorata) = ${fmt(s.salFinal)} €`;
 
   const smicBlock = s.smicApplied
-    ? `<div class="smic-alert">⚠ Le salaire calculé (${fmt(s.salFinal)}\u202f€) est inférieur au SMIC proratisé (${fmt(SMIC_MENSUEL * s.ratio)}\u202f€). Le SMIC s'applique.</div>`
-    : '';
-
+    ? `<div class="smic-alert">⚠ Salaire calculé (${fmt(s.salFinal)}\u202f€) inférieur au SMIC proratisé (${fmt(CFG.smic_mensuel*s.ratio)}\u202f€). SMIC appliqué.</div>` : '';
   const netBlock = s.net
-    ? `<div class="ps-net-block">
-        <div class="ps-net-title">Net estimé — taux cotisations salariales : ${(s.currentTaux * 100).toFixed(1)}\u202f%</div>
-        <div class="ps-net-val">${fmt(s.net)}\u202f€ <span style="font-size:13px;color:#6B6860;font-weight:400">/mois</span></div>
-        <div class="ps-net-note">Cotisations déduites : ${fmt(s.cotisations)}\u202f€ · Net annuel estimé : ${fmt(s.netAnnuel, 0)}\u202f€<br>
-        Estimation indicative (taux moyens régime général : maladie, retraite, chômage, CSG/CRDS). Ne tient pas compte de la mutuelle, prévoyance ni situation personnelle.</div>
-      </div>`
-    : '';
+    ? `<div class="ps-net-block"><div class="ps-net-title">Net estimé — cotisations : ${(s.currentTaux*100).toFixed(1)}\u202f%</div><div class="ps-net-val">${fmt(s.net)}\u202f€ <span style="font-size:13px;color:#6B6860">/mois</span></div><div class="ps-net-note">Cotisations : ${fmt(s.cotisations)}\u202f€ · Net annuel : ${fmt(s.netAnnuel,0)}\u202f€<br>Estimation indicative — hors mutuelle, prévoyance et situation personnelle.</div></div>` : '';
 
   el('print-sheet').innerHTML = `
     <div class="ps-header">
-      <div>
-        <div class="ps-org">Amicial · Service Ressources Humaines</div>
-        <div class="ps-title">Fiche de positionnement rémunération</div>
-      </div>
+      <div><div class="ps-org">Amicial · Service Ressources Humaines</div><div class="ps-title">Fiche de positionnement rémunération</div></div>
       <div class="ps-date"><strong>${dateStr}</strong>Générée à ${timeStr}</div>
     </div>
-
     <div class="ps-amount-block">
       <div>
         <div class="ps-amount-label">Salaire brut mensuel estimé</div>
@@ -550,55 +681,40 @@ function exportPDF() {
       </div>
       <div style="text-align:right">
         <div class="ps-amount-label" style="margin-bottom:4px">Taux horaire brut</div>
-        <div style="font-size:20px;font-weight:400">${fmt(s.tauxHoraire, 4)}\u202f€/h</div>
-        <div class="ps-amount-sub">Annuel brut : ${fmt(s.salAnnuel, 0)}\u202f€</div>
+        <div style="font-size:20px;font-weight:400">${fmt(s.tauxHoraire,4)}\u202f€/h</div>
+        <div class="ps-amount-sub">Annuel brut : ${fmt(s.salAnnuel,0)}\u202f€</div>
       </div>
     </div>
-
-    ${smicBlock}
-    ${netBlock}
-
+    ${smicBlock}${netBlock}
     <div class="ps-kpis">
       <div class="ps-kpi"><div class="ps-kpi-label">Coefficient</div><div class="ps-kpi-val">${s.coeff}</div></div>
       <div class="ps-kpi"><div class="ps-kpi-label">Durée mensuelle</div><div class="ps-kpi-val">${fmt(s.duree)}\u202fh</div></div>
-      <div class="ps-kpi"><div class="ps-kpi-label">Salaire de base TP</div><div class="ps-kpi-val">${fmt(s.salaireBaseTP)}\u202f€</div></div>
+      <div class="ps-kpi"><div class="ps-kpi-label">Valeur du point</div><div class="ps-kpi-val">${CFG.valeur_point.toFixed(2).replace('.',',')} €</div></div>
     </div>
-
-    <section>
-      <h3>Positionnement convention collective</h3>
+    <section><h3>Positionnement convention collective</h3>
       <table class="ps-table">
         <tr><td>Filière</td><td>${filiereLong}</td></tr>
         <tr><td>Catégorie</td><td>${s.cspLabel}</td></tr>
         <tr><td>Degré</td><td>Degré ${s.degre}</td></tr>
         <tr><td>Échelon</td><td>Échelon ${s.echelon} ${['','(débutant)','(bonne maîtrise)','(parfaite maîtrise)'][s.echelon]}</td></tr>
-        <tr><td>Durée mensuelle</td><td>${fmt(s.duree)}\u202fh${s.ratio < 1 ? ' · temps partiel ' + Math.round(s.ratio * 100) + '\u202f%' : ' · temps plein'}</td></tr>
+        <tr><td>Durée mensuelle</td><td>${fmt(s.duree)}\u202fh${s.ratio<1?' · temps partiel '+Math.round(s.ratio*100)+'\u202f%':' · temps plein'}</td></tr>
       </table>
     </section>
-
-    <section>
-      <h3>Éléments complémentaires de rémunération (ECR)</h3>
-      <table class="ps-table">
-        ${ecrRows}
-        <tr><td><strong>Salaire de référence (avant prorata)</strong></td><td><strong>${fmt(s.salRef)}\u202f€</strong></td></tr>
-      </table>
+    <section><h3>Éléments complémentaires de rémunération</h3>
+      <table class="ps-table">${ecrRows}<tr><td><strong>Salaire de référence (avant prorata)</strong></td><td><strong>${fmt(s.salRef)}\u202f€</strong></td></tr></table>
     </section>
-
-    <section>
-      <h3>Formule de calcul appliquée</h3>
-      <div class="ps-formula"><strong>${formuleTexte}</strong></div>
-    </section>
-
+    <section><h3>Formule appliquée</h3><div class="ps-formula"><strong>${fTxt}</strong></div></section>
     <div class="ps-footer">
-      Document indicatif généré automatiquement · Convention collective BAD · Avenant 43 · Point : ${VALEUR_POINT}\u202f€ · SMIC au 01/06/2026 : ${fmt(SMIC_MENSUEL)}\u202f€.<br>
+      Document indicatif · CCN BAD · Avenant 43 · Point : ${CFG.valeur_point.toFixed(2).replace('.',',')} € · SMIC : ${fmt(CFG.smic_mensuel)} €.<br>
       Pour tout positionnement définitif, se rapprocher du service Ressources Humaines.
-    </div>
-  `;
+    </div>`;
 
   window.print();
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────
-updateForm();
+// ── Démarrage ─────────────────────────────────────────────────────────────
+el('duree').addEventListener('input', () => { el('duree').dataset.touched = '1'; });
+init();
 </script>
 </body>
 </html>
