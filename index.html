@@ -457,21 +457,34 @@ async function loadFromSheets() {
         }));
     }
 
-    // Onglet coefficients : csp | degre | echelon | coeff (ligne 1 = en-tête)
-    const coeffRows = await fetchRange('coefficients!A2:D30');
+    // Onglet coefficients : filiere | csp | degre | echelon | coeff (ligne 1 = en-tête)
+    const coeffRows = await fetchRange('coefficients!A2:E50');
     if (coeffRows.length > 0) {
-      COEFFICIENTS = {};
+      // Reconstruire les deux grilles séparément
+      const newIAD = {}, newADM = {};
       coeffRows
-        .filter(r => r.length >= 4 && r[0] !== '')
+        .filter(r => r.length >= 5 && r[0] !== '')
         .forEach(r => {
-          const csp     = r[0].toString().trim();
-          const degre   = parseInt(r[1]);
-          const echelon = parseInt(r[2]);
-          const coeff   = parseInt(r[3]);
-          if (!COEFFICIENTS[csp]) COEFFICIENTS[csp] = {};
-          if (!COEFFICIENTS[csp][degre]) COEFFICIENTS[csp][degre] = {};
-          COEFFICIENTS[csp][degre][echelon] = coeff;
+          const filiere = r[0].toString().trim().toUpperCase(); // IAD ou ADM
+          const csp     = r[1].toString().trim();
+          const degre   = parseInt(r[2]);
+          const echelon = parseInt(r[3]);
+          const coeff   = parseInt(r[4]);
+          const target  = filiere === 'ADM' ? newADM : newIAD;
+          if (!target[csp]) target[csp] = {};
+          if (!target[csp][degre]) target[csp][degre] = {};
+          target[csp][degre][echelon] = coeff;
         });
+
+      // Ne mettre à jour que si le Sheet contient bien des données
+      if (Object.keys(newIAD).length > 0) {
+        Object.assign(GRILLE_IAD, newIAD);
+      }
+      if (Object.keys(newADM).length > 0) {
+        Object.assign(GRILLE_ADM, newADM);
+      }
+      // Resynchroniser COEFFICIENTS avec la filière active
+      COEFFICIENTS = currentFiliere === 'ADM' ? GRILLE_ADM : GRILLE_IAD;
     }
 
     // Mise à jour du bandeau
