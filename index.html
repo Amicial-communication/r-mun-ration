@@ -253,7 +253,7 @@
     <div class="card-title">Positionnement dans la grille</div>
     <div class="field">
       <label>Catégorie socioprofessionnelle</label>
-      <select id="csp" onchange="updateForm()">
+      <select id="csp" onchange="updateDegreOptions(); updateForm()">
         <option value="Employé">Employé</option>
         <option value="TAM">Technicien / Agent de Maîtrise (TAM)</option>
       </select>
@@ -374,10 +374,17 @@ let DIPLOMES = [
   { code:'17', label:'Niveau 7 · BAC+5, CAFDES',            points:17 },
 ];
 
-let COEFFICIENTS = {
+// Grilles par filière (source : Avenant 43, fichier RH)
+const GRILLE_IAD = {
   Employé: { 1:{1:308,2:315,3:331}, 2:{1:344,2:359,3:383} },
   TAM:     { 1:{1:363,2:379,3:404}, 2:{1:436,2:456,3:485} },
 };
+// ADM : Employé commence au Degré 2 ; TAM Degré 1 = Gestionnaire, Degré 2 = Coordinateur
+const GRILLE_ADM = {
+  Employé: { 2:{1:344,2:359,3:383} },
+  TAM:     { 1:{1:363,2:379,3:404}, 2:{1:436,2:456,3:485} },
+};
+let COEFFICIENTS = GRILLE_IAD; // initialisé à IAD, mis à jour par setFiliere()
 
 const POSTES_IAD = [
   {degre:1,echelon:1,poste:'Intervenant à domicile',coeff:308},
@@ -516,11 +523,39 @@ async function init() {
 // ── Switcher filière ──────────────────────────────────────────────────────
 function setFiliere(f) {
   currentFiliere = f;
+  COEFFICIENTS = f === 'IAD' ? GRILLE_IAD : GRILLE_ADM;
+
   document.querySelectorAll('.tab-btn').forEach((btn, i) => {
     btn.classList.toggle('active', (i===0 && f==='IAD') || (i===1 && f==='ADM'));
   });
   el('postes-summary').textContent = f === 'IAD' ? 'Postes filière Intervention' : 'Postes filière Support';
+
+  // Adapter les options Degré selon la filière
+  const degreSelect = el('degre');
+  const cspSelect   = el('csp');
+
+  if (f === 'ADM') {
+    // En ADM Employé : Degré 2 seulement — si on sélectionne Employé, forcer Degré 2
+    updateDegreOptions();
+  } else {
+    // IAD : tous les degrés disponibles
+    degreSelect.innerHTML = '<option value="1">Degré 1</option><option value="2">Degré 2</option>';
+  }
+
   updateForm();
+}
+
+function updateDegreOptions() {
+  const csp         = el('csp').value;
+  const degreSelect = el('degre');
+  const currentVal  = degreSelect.value;
+
+  if (currentFiliere === 'ADM' && csp === 'Employé') {
+    degreSelect.innerHTML = '<option value="2">Degré 2</option>';
+  } else {
+    degreSelect.innerHTML = '<option value="1">Degré 1</option><option value="2">Degré 2</option>';
+    if (['1','2'].includes(currentVal)) degreSelect.value = currentVal;
+  }
 }
 
 // ── Formulaire ────────────────────────────────────────────────────────────
@@ -590,6 +625,9 @@ function calculate() {
     ancVal, ancLabel, diplPts, diplLabel,
     coeff, salaireBaseTP, ecrDiplome, ecrAnciennete, salRef,
     ratio, salFinal, salAfterSmic, smicApplied, tauxHoraire, salAnnuel,
+    salBaseProrata: salaireBaseTP * ratio,
+    ecrDiplomeProrata: ecrDiplome * ratio,
+    ecrAncienneteProrata: ecrAnciennete * ratio,
     VP,
   };
 
@@ -598,8 +636,17 @@ function calculate() {
   warn.textContent   = smicApplied ? '⚠ SMIC appliqué (salaire calculé inférieur au minimum légal)' : '';
   warn.style.opacity = smicApplied ? '0.9' : '0';
 
+  // Salaire de base proratisé (sans ECR)
+  const salBaseProrata = salaireBaseTP * ratio;
+
   el('result-details').innerHTML = `
     <div class="result-row"><span class="result-row-label">Coefficient</span><span class="result-row-value">${coeff}</span></div>
+    <div class="result-row" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12)">
+      <span class="result-row-label">Salaire de base${ratio < 1 ? ' (proratisé)' : ''}</span>
+      <span class="result-row-value">${fmt(salBaseProrata)} €</span>
+    </div>
+    ${(diplPts > 0 || ancVal > 0) ? `<div class="result-row" style="opacity:.75"><span class="result-row-label">dont ECR diplôme</span><span class="result-row-value">+ ${fmt(ecrDiplome * ratio)} €</span></div>` : ''}
+    ${ancVal > 0 ? `<div class="result-row" style="opacity:.75"><span class="result-row-label">dont ECR ancienneté</span><span class="result-row-value">+ ${fmt(ecrAnciennete * ratio)} €</span></div>` : ''}
     <div class="result-row"><span class="result-row-label">Taux horaire brut</span><span class="result-row-value">${fmt(tauxHoraire,4)} €/h</span></div>
     <div class="result-row"><span class="result-row-label">Durée mensuelle</span><span class="result-row-value">${fmt(duree)} h</span></div>
     <div class="result-row"><span class="result-row-label">Salaire annuel brut</span><span class="result-row-value">${fmt(salAnnuel,0)} €</span></div>
